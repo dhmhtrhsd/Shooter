@@ -15,7 +15,7 @@ body {
 </head>
 <body>
 	<script type="text/javascript">
-		var game = new Phaser.Game(800, 600, Phaser.AUTO, 'phaser-demo', {
+		var game = new Phaser.Game(window.innerWidth, window.innerHeight, Phaser.AUTO, 'phaser-demo', {
 			preload : preload,
 			create : create,
 			update : update,
@@ -30,6 +30,16 @@ body {
 		var bullets;
 		var fireButton;
 		var bulletTimer = 0;
+		var enemiesTier1;
+		var enemiesTier2;
+		var explosions;
+		var lives;
+		var ship_lifes = 5;
+		var ship_lifes_img;
+		var score = 0;
+		var enemyBullets;
+		var enemiesTier1Spacing = 1000;
+		var blueEnemyLaunched = false;
 
 		var ACCLERATION = 600;
 		var DRAG = 400;
@@ -39,21 +49,56 @@ body {
 
 			//  We need this because the assets are on github pages
 			//  Remove the next 2 lines if running locally
-			game.load.baseURL = 'https://ioniodi.github.io/Shooter/';
-			game.load.crossOrigin = 'anonymous';
-			
+			//game.load.baseURL = 'https://ioniodi.github.io/Shooter/';
+			//game.load.crossOrigin = 'anonymous';
+
 			game.load.image('starfield', 'assets/starfield.png');
-			game.load.image('ship', 'assets/ship.png');
+			game.load.image('ship5lifes', 'assets/ship5lifes.png');
+			game.load.image('ship3lifes', 'assets/ship3lifes.png');
+			game.load.image('ship1life', 'assets/ship1life.png');
 			game.load.image('bullet', 'assets/bullets/bullet.png');
+			game.load.image('enemiesTier1', 'assets/enemies/enemy2.png');
+			game.load.image('enemiesTier2', 'assets/enemies/enemy3.png');
+			game.load.image('ship_lifes_img', '/assets/ship_lifes.png');
+			game.load.image('enemiesTier2Bullet', '/assets/bullets/blue-enemy-bullet.png');
+			game.load.spritesheet('explosion', '/assets/explode.png', 128, 128);
+
+			game.load.audio('theme', 'assets/sounds/theme.ogg');
+			game.load.audio('laser1', 'assets/sounds/laser1.ogg');
+			game.load.audio('explosion1', 'assets/sounds/explosion1.ogg');
+			game.load.audio('explosionGameover', 'assets/sounds/explosionGameover.ogg');
+			game.load.audio('explosionSpaceship', 'assets/sounds/explosionSpaceship.ogg');
+			game.load.bitmapFont('spacefont', '/assets/spacefont/font.png', '/assets/spacefont/font.xml');
 
 		}
 
 		function create() {
-			
-			game.scale.pageAlignHorizontally = true;
-			
+		game.camera.flash(000000, 5000);
+		//sounds
+		laser1 = game.add.audio('laser1');
+		theme = game.add.audio('theme');
+		explosion1 = game.add.audio('explosion1');
+		explosionSpaceship = game.add.audio('explosionSpaceship');
+		explosionGameover = game.add.audio('explosionGameover');
+
+		theme.loopFull(0.08);
+		laser1.volume = 0.2;
+		explosion1.volume = 0.2;
+		explosionSpaceship.volume = 0.7;
+		explosionGameover.volume = 0.25;
+
+    this.scale.scaleMode = Phaser.ScaleManager.SHOW_ALL;
+		//scaling options
+    //have the game centered horizontally
+
+    this.scale.pageAlignHorizontally = true;
+
+    this.scale.pageAlignVertically = true;
+
+    //screen size will be set automatically
+
 			//  The scrolling starfield background
-			starfield = game.add.tileSprite(0, 0, 800, 600, 'starfield');
+			starfield = game.add.tileSprite(0, 0, window.innerWidth, window.innerHeight, 'starfield');
 
 			//  Our bullet group
 			bullets = game.add.group();
@@ -66,11 +111,14 @@ body {
 			bullets.setAll('checkWorldBounds', true);
 
 			//  The hero!
-			player = game.add.sprite(100, game.height / 2, 'ship');
+			player = game.add.sprite(100, game.height / 2, 'ship5lifes');
 			player.anchor.setTo(0.5, 0.5);
 			game.physics.enable(player, Phaser.Physics.ARCADE);
 			player.body.maxVelocity.setTo(MAXSPEED, MAXSPEED);
 			player.body.drag.setTo(DRAG, DRAG);
+			player.events.onKilled.add(function(){
+      shipTrail.kill();
+    	});
 
 			//  And some controls to play the game with
 			cursors = game.input.keyboard.createCursorKeys();
@@ -88,7 +136,71 @@ body {
 					Phaser.Easing.Quintic.Out);
 			shipTrail.start(false, 5000, 10);
 
-		}
+		  enemiesTier1 = game.add.group();
+	 		enemiesTier1.enableBody = true;
+   		enemiesTier1.physicsBodyType = Phaser.Physics.ARCADE;
+   		enemiesTier1.createMultiple(5, 'enemiesTier1');
+   		enemiesTier1.setAll('anchor.x', 0.5);
+   		enemiesTier1.setAll('anchor.y', 0.5);
+   		enemiesTier1.setAll('scale.x', 1);
+   		enemiesTier1.setAll('scale.y', 1);
+   		enemiesTier1.setAll('angle', 0);
+			enemiesTier1.forEach(function(enemy){
+	    addEnemyEmitterTrail(enemy);
+			enemy.body.setSize(enemy.width * 3 / 4, enemy.height * 3 / 4);
+	    enemy.events.onKilled.add(function(){
+	   	enemy.trail.kill();
+     		});
+	  	});
+			launchEnemyTier1();
+
+		//  Blue enemy's bullets
+		blueEnemyBullets = game.add.group();
+		blueEnemyBullets.enableBody = true;
+		blueEnemyBullets.physicsBodyType = Phaser.Physics.ARCADE;
+		blueEnemyBullets.createMultiple(30, 'enemiesTier2Bullet');
+		blueEnemyBullets.callAll('crop', null, {x: 90, y: 0, width: 90, height: 70});
+		blueEnemyBullets.setAll('alpha', 0.9);
+		blueEnemyBullets.setAll('anchor.x', 0.5);
+		blueEnemyBullets.setAll('anchor.y', 0.5);
+		blueEnemyBullets.setAll('outOfBoundsKill', true);
+		blueEnemyBullets.setAll('checkWorldBounds', true);
+		blueEnemyBullets.forEach(function(enemy){
+				enemy.body.setSize(20, 40);
+		});
+
+		enemiesTier2 = game.add.group();
+		enemiesTier2.enableBody = true;
+		enemiesTier2.physicsBodyType = Phaser.Physics.ARCADE;
+		enemiesTier2.createMultiple(30, 'enemiesTier2');
+		enemiesTier2.setAll('anchor.x', 0.5);
+		enemiesTier2.setAll('anchor.y', 0.5);
+		enemiesTier2.setAll('scale.x', 1);
+		enemiesTier2.setAll('scale.y', 1);
+		enemiesTier2.setAll('angle', 0);
+
+			//  An explosion pool
+    explosions = game.add.group();
+    explosions.enableBody = true;
+    explosions.physicsBodyType = Phaser.Physics.ARCADE;
+    explosions.createMultiple(30, 'explosion');
+    explosions.setAll('anchor.x', 0.5);
+    explosions.setAll('anchor.y', 0.5);
+    explosions.forEach( function(explosion) {
+    explosion.animations.add('explosion');
+    });
+
+		 //  Lifes stats
+		ship_lifes_img = game.add.image(game.world.width - 170, 20, 'ship_lifes_img');
+		ship_lifes_img.scale.setTo(1.9);
+		//ship_lifes_text = game.add.bitmapText(game.world.width - 80, 30, 'spacefont', 'x'+ ship_lifes, 40);
+		ship_lifes_text = game.add.bitmapText(game.world.width - 80, 30, 'spacefont', 'x'+ ship_lifes, 40);
+
+		enemiesTier1_img = game.add.image(60, 10, 'enemiesTier1');
+		enemiesTier1_img.angle = 90;
+		//score_text = game.add.text(70, 10, 'x' + score, { font:'40px Impact', fill: '#666666' });
+		score_text = game.add.bitmapText(70, 20, 'spacefont', 'x'+ score, 40);
+}
 
 		function update() {
 
@@ -98,6 +210,14 @@ body {
 			//  Reset the player, then check for movement keys
 			player.body.acceleration.y = 0;
 			player.body.acceleration.x = 0;
+
+			//  Check collisions
+      game.physics.arcade.overlap(player, enemiesTier1, shipCollide, null, this);
+			game.physics.arcade.overlap(enemiesTier1, bullets, hitEnemy, null, this);
+
+			game.physics.arcade.overlap(player, enemiesTier2, shipCollide, null, this);
+      game.physics.arcade.overlap(bullets, enemiesTier2, hitEnemy, null, this);
+			game.physics.arcade.overlap(blueEnemyBullets, player, enemyHitsPlayer, null, this);
 
 			if (cursors.up.isDown) {
 				player.body.acceleration.y = -ACCLERATION;
@@ -128,7 +248,7 @@ body {
 			}
 
 			//  Fire bullet
-			if (player.alive && fireButton.isDown) {
+			if (player.alive && ship_lifes >= 1 && (fireButton.isDown || game.input.activePointer.isDown)) {
 				fireBullet();
 			}
 
@@ -136,13 +256,21 @@ body {
 			shipTrail.y = player.y;
 			shipTrail.x = player.x - 20;
 
-		}
+			if(game.input.keyboard.isDown(Phaser.Keyboard.R)){
+				game.camera.fade(000000, 1000);
+				theme.stop();
+				game.state.restart();
+				score = 0;
+				ship_lifes = 5;
+				blueEnemyBullets.callAll('kill');
+	}
+}
 
 		function render() {
 
-		}
+}
 
-		function fireBullet() {
+			function fireBullet() {
 			//  To avoid them being allowed to fire too fast we set a time limit
 			if (game.time.now > bulletTimer) {
 				var BULLET_SPEED = 400;
@@ -151,6 +279,7 @@ body {
 				var bullet = bullets.getFirstExists(false);
 
 				if (bullet) {
+					laser1.play();
 					//  And fire it
 					//  Make bullet come out of tip of ship with right angle
 					var bulletOffset = 20 * Math.sin(game.math
@@ -165,6 +294,210 @@ body {
 				}
 			}
 		}
+
+			function launchEnemyTier1() {
+   			var ENEMY_SPEED = 300;
+
+  			var enemy = enemiesTier1.getFirstExists(false);
+   			if (enemy){
+      		enemy.reset(game.width, game.rnd.integerInRange(50, 1000));
+      		enemy.body.velocity.x = game.rnd.integerInRange(-200, -400);
+       		enemy.body.velocity.y = ENEMY_SPEED;
+      		enemy.body.drag.y = 150;
+					enemy.trail.start(false, 800, 1);
+					//  Update function for each enemy ship to update rotation etc
+       	  enemy.update = function(){
+	          enemy.angle = -90 - game.math.radToDeg(Math.atan2(enemy.body.velocity.x, enemy.body.velocity.y));
+						enemy.trail.x = enemy.x;
+	          enemy.trail.y = enemy.y -10;
+
+	         //  Kill enemies once they go off screen
+		        if (enemy.x < 0) {
+		         enemy.kill();
+		        }
+					}
+   			}
+				//  Send another enemy soon
+				game.time.events.add(game.rnd.integerInRange(enemiesTier1Spacing, enemiesTier1Spacing + 1000), launchEnemyTier1);
+
+				enemiesTier1Spacing *= 0.9;
+				//  Blue enemies come in after a score of 10
+				if (!blueEnemyLaunched && score >= 10) {
+					blueEnemyLaunched = true;
+					launchEnemyTier2();
+					//  Slow green enemies down now that there are other enemies
+					enemiesTier1Spacing *= 2;
+				}
+			}
+
+		function launchEnemyTier2() {
+	    var startingY = game.rnd.integerInRange(100, game.height - 100);
+	    var verticalSpeed = 230;
+	    var spread = 60;
+	    var frequency = 70;
+	    var verticalSpacing = 70;
+	    var numEnemiesInWave = 5;
+	    var timeBetweenWaves = 2500;
+
+	    //  Launch wave
+	    for (var i =0; i < numEnemiesInWave; i++) {
+	        var enemy = enemiesTier2.getFirstExists(false);
+	        if (enemy) {
+	            enemy.startingY = startingY;
+	            enemy.reset(game.width + verticalSpacing * i + 400, game.height / 2);
+	            enemy.body.velocity.x = -verticalSpeed;
+							enemy.body.velocity.y = -verticalSpeed / 8;
+
+								//  Set up firing
+	            var bulletSpeed = 550;
+	            var firingDelay = 2000;
+	            enemy.bullets = 1;
+	            enemy.lastShot = 0;
+
+	            //  Update function for each enemy
+	            enemy.update = function(){
+	              //  Wave movement
+	              this.body.y = this.startingY + Math.sin((this.x) / frequency) * spread;
+
+	              //  Squish and rotate ship for illusion of "banking"
+	              bank = Math.cos((this.y + 60) / frequency)
+	              this.scale.x = 0.8 - Math.abs(bank) / 8;
+	              //this.angle = 180 - bank * 2;
+
+								//  Fire
+              	enemyBullet = blueEnemyBullets.getFirstExists(false);
+              	if (enemyBullet && this.alive && this.bullets && this.x < game.width / 1.1 && game.time.now > firingDelay + this.lastShot){
+                    this.lastShot = game.time.now;
+                    this.bullets--;
+                    enemyBullet.reset(this.x, this.y + this.height / 2);
+                    var angle = game.physics.arcade.moveToObject(enemyBullet, player, bulletSpeed);
+                  	enemyBullet.angle = game.math.radToDeg(angle);
+                }
+	              //  Kill enemies once they go off screen
+	              if (this.x < 0) {
+	                this.kill();
+	              }
+	            };
+	        }
+	    }
+	    //  Send another wave soon
+			blueEnemyLaunchTimer = game.time.events.add(game.rnd.integerInRange(timeBetweenWaves, timeBetweenWaves + 4000), launchEnemyTier2);
+}
+
+		function addEnemyEmitterTrail(enemy) {
+	    var enemyTrail = game.add.emitter(enemy.x, player.y - 10, 100);
+	    enemyTrail.width = 10;
+	    enemyTrail.makeParticles('explosion', [1,2,3,4,5]);
+	    enemyTrail.setXSpeed(20, -20);
+	    enemyTrail.setRotation(50,-50);
+	    enemyTrail.setAlpha(0.4, 0, 800);
+	    enemyTrail.setScale(0.01, 0.1, 0.01, 0.1, 1000, Phaser.Easing.Quintic.Out);
+	    enemy.trail = enemyTrail;
+		}
+
+		function shipCollide(player, enemy) {
+	    var explosion = explosions.getFirstExists(false);
+	    explosion.reset(enemy.body.x + enemy.body.halfWidth, enemy.body.y + enemy.body.halfHeight);
+	    explosion.body.velocity.y = enemy.body.velocity.y;
+	    explosion.alpha = 0.7;
+	    explosion.play('explosion', 30, false, true);
+	    enemy.kill();
+			ship_lifes-= 1;
+			ship_lifes_text.text = 'x' + ship_lifes;
+			score+= 1;
+			score_text.text = 'x' + score;
+			if(ship_lifes >= 4){
+					explosionSpaceship.play();
+			}
+			else if(ship_lifes >= 2){
+					explosionSpaceship.play();
+					player.loadTexture('ship3lifes');
+			}
+			else if(ship_lifes == 1){
+				explosionSpaceship.play();
+				player.loadTexture('ship1life');
+			}
+			else{
+				explosion.play('explosion', 30, false, true);
+		    player.kill();
+				game.add.tween(starfield).to( { alpha: 0 }, 3000, Phaser.Easing.Linear.None, true, 0, 1000, true);
+				explosionGameover.play();
+				ship_lifes_text.destroy();
+				ship_lifes_img.destroy();
+				score_text.destroy();
+				enemiesTier1_img.destroy();
+				gameover_text = game.add.bitmapText(580, 430, 'spacefont', 'game over', 160);
+				gameover_text.tint = 0xF70303;
+				this.game.time.events.add(2000, function(){
+					gameover_text2 = game.add.bitmapText(658, 550, 'spacefont', 'press    r    to    restart', 60);
+					if(score <= 1)
+						finalScore_text = game.add.bitmapText(619, 730, 'spacefont', 'you   took   down   ' + score + '   enemy', 60);
+					else
+						finalScore_text = game.add.bitmapText(600, 730, 'spacefont', 'you   took   down   ' + score + '   enemies', 60);
+					finalScore_text2 = game.add.bitmapText(620, 800	, 'spacefont', 'better   luck   next   time', 60);
+				});
+			}
+		}
+
+		function hitEnemy(enemy, bullet) {
+	    var explosion = explosions.getFirstExists(false);
+	    explosion.reset(bullet.body.x + bullet.body.halfWidth, bullet.body.y + bullet.body.halfHeight);
+	    explosion.body.velocity.y = enemy.body.velocity.y;
+	    explosion.alpha = 0.7;
+	    explosion.play('explosion', 30, false, true);
+	    enemy.kill();
+	    bullet.kill()
+			explosion1.play();
+			score+= 1;
+			score_text.text = 'x' + score;
+		}
+
+		 function enemyHitsPlayer (player, bullet) {
+	     var explosion = explosions.getFirstExists(false);
+	     explosion.reset(player.body.x + player.body.halfWidth, player.body.y + player.body.halfHeight);
+	     explosion.alpha = 0.7;
+	     explosion.play('explosion', 30, false, true);
+	     bullet.kill();
+			 enemiesTier2.callAll('kill');
+    	 game.time.events.remove(blueEnemyLaunchTimer);
+			 ship_lifes -= 2;
+			 ship_lifes_text.text = 'x' + ship_lifes;
+			 if(ship_lifes >= 4){
+ 					explosionSpaceship.play();
+ 			}
+ 			else if(ship_lifes >= 2){
+ 					explosionSpaceship.play();
+ 					player.loadTexture('ship3lifes');
+ 			}
+ 			else if(ship_lifes == 1){
+ 				explosionSpaceship.play();
+ 				player.loadTexture('ship1life');
+ 			}
+ 			else{
+ 				explosion.play('explosion', 30, false, true);
+ 		    player.kill();
+				game.add.tween(starfield).to( { alpha: 0 }, 3000, Phaser.Easing.Linear.None, true, 0, 1000, true);
+ 				explosionGameover.play();
+ 				ship_lifes_text.destroy();
+ 				ship_lifes_img.destroy();
+ 				score_text.destroy();
+ 				enemiesTier1_img.destroy();
+ 				gameover_text = game.add.bitmapText(580, 430, 'spacefont', 'game over', 160);
+ 				gameover_text.tint = 0xF70303;
+ 				this.game.time.events.add(2000, function(){
+ 					gameover_text2 = game.add.bitmapText(658, 550, 'spacefont', 'press    r    to    restart', 60);
+					if(score <= 1)
+						finalScore_text = game.add.bitmapText(619, 730, 'spacefont', 'you   took   down   ' + score + '   enemy', 60);
+					else
+						finalScore_text = game.add.bitmapText(600, 730, 'spacefont', 'you   took   down   ' + score + '   enemies', 60);
+					finalScore_text2 = game.add.bitmapText(620, 800, 'spacefont', 'better   luck   next   time', 60);
+ 				});
+ 			}
+
+			//  Reset pacing
+     enemiesTier1Spacing = 1000;
+     blueEnemyLaunched = false;
+ 		 }
 	</script>
 </body>
 </html>
