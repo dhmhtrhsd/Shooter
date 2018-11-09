@@ -15,7 +15,7 @@ body {
 </head>
 <body>
 	<script type="text/javascript">
-		var game = new Phaser.Game(window.innerWidth, window.innerHeight, Phaser.AUTO, 'phaser-demo', {
+		var game = new Phaser.Game(800, 600, Phaser.AUTO, 'phaser-demo', {
 			preload : preload,
 			create : create,
 			update : update,
@@ -49,8 +49,8 @@ body {
 
 			//  We need this because the assets are on github pages
 			//  Remove the next 2 lines if running locally
-			game.load.baseURL = 'https://dhmhtrhsd.github.io/Shooter/';
-			game.load.crossOrigin = 'anonymous';
+			//game.load.baseURL = 'https://ioniodi.github.io/Shooter/';
+			//game.load.crossOrigin = 'anonymous';
 
 			game.load.image('starfield', 'assets/starfield.png');
 			game.load.image('ship5lifes', 'assets/ship5lifes.png');
@@ -87,18 +87,18 @@ body {
 		explosionSpaceship.volume = 0.7;
 		explosionGameover.volume = 0.25;
 
-    this.scale.scaleMode = Phaser.ScaleManager.SHOW_ALL;
+    //this.scale.scaleMode = Phaser.ScaleManager.SHOW_ALL;
 		//scaling options
     //have the game centered horizontally
 
     this.scale.pageAlignHorizontally = true;
 
-    this.scale.pageAlignVertically = true;
+    //this.scale.pageAlignVertically = true;
 
     //screen size will be set automatically
 
 			//  The scrolling starfield background
-			starfield = game.add.tileSprite(0, 0, window.innerWidth, window.innerHeight, 'starfield');
+			starfield = game.add.tileSprite(0, 0, 800, 600, 'starfield');
 
 			//  Our bullet group
 			bullets = game.add.group();
