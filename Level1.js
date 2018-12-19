@@ -4,8 +4,8 @@ var Level1 = {
 
         //  We need this because the assets are on github pages
         //  Remove the next 2 lines if running locally
-        game.load.baseURL = 'https://dhmhtrhsd.github.io/Shooter/';
-        game.load.crossOrigin = 'anonymous';
+        this.load.baseURL = 'https://dhmhtrhsd.github.io/Shooter/';
+        this.load.crossOrigin = 'anonymous';
 
         game.load.image('starfield', 'assets/starfield.png');
         game.load.image('ship5lifes', 'assets/ship5lifes.png');
